@@ -230,7 +230,7 @@ function main() {
     const commands = getCommandsFromFileName(filename)
     let hotel = null
     commands.forEach(command => {
-        switch (command.name) {
+        switch (command.name.trim()) {
             case 'create_hotel':
                 const [floorToCreate, roomPerFloorToCreate] = command.params
                 hotel = new Hotel(floorToCreate, roomPerFloorToCreate)
