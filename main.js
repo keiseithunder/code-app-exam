@@ -97,6 +97,56 @@ class Hotel {
             return selectedRoom
         }
     }
+    checkOut(keycardNumberToCheckOut, guestNameToCheckOut) {
+        const keycard = this.keycardManager.getKeycardFromNumber(
+            keycardNumberToCheckOut
+        )
+        const roomToCheckOut = keycard.room
+        if (keycard.isGuestOwner(guestNameToCheckOut.trim())) {
+            roomToCheckOut.checkOut()
+            keycard.checkOut()
+        }
+        return roomToCheckOut
+    }
+    checkOutByFloor(floorToCheckOut) {
+        const roomToCheckOutByFloor = this.listRoomByFloor(floorToCheckOut)
+        const roomToCheckOutWithGuest = roomToCheckOutByFloor.filter(
+            room => !room.isFree()
+        )
+        roomToCheckOutWithGuest.forEach(room => {
+            room.keycard.checkOut()
+            room.checkOut()
+        })
+        return roomToCheckOutWithGuest
+    }
+    bookRoomByFloor(
+        floorToBook,
+        guestNameToBookByFloor,
+        guestAgeToBookByFloor
+    ) {
+        const roomToBookByFloor = this.listRoomByFloor(floorToBook)
+
+        if (
+            roomToBookByFloor.filter(room => room.isFree()).length ==
+            roomToBookByFloor.length
+        ) {
+            const bookedRoom = roomToBookByFloor
+                .filter(room => room.isFree())
+                .map(room => {
+                    return this.bookRoom(
+                        room.roomNumber,
+                        guestNameToBookByFloor,
+                        guestAgeToBookByFloor
+                    )
+                })
+            return bookedRoom
+        } else {
+            return null
+        }
+    }
+    listGuestByFloor(floor) {
+        return this.listRoomByFloor(floor).filter(room => !room.isFree())
+    }
 }
 
 class KeycardManager {
@@ -106,7 +156,6 @@ class KeycardManager {
             .map((item, index) => new Keycard(index + 1))
     }
     getNextKeycard() {
-        // console.log('getNextKeycard', this.allKeysCard)
         return this.allKeysCard.find(keycard => keycard.isFree())
     }
     getKeycardFromNumber(number) {
@@ -208,29 +257,29 @@ function main() {
                         `Room ${room.roomNumber} is booked by ${room.guest.name} with keycard number ${room.keycard.number}.`
                     )
                 }
-
                 return
-            case 'list_available_rooms\r':
+            case 'list_available_rooms':
                 const avaliableRoom = hotel.listAvailableRooms()
                 console.log(`${avaliableRoom.join(', ')}`)
                 return
             case 'checkout':
                 const [keycardNumberToCheckOut, guestNameToCheckOut] =
                     command.params
-                const keycard = hotel.keycardManager.getKeycardFromNumber(
-                    keycardNumberToCheckOut
+                const checkOutRoom = hotel.checkOut(
+                    keycardNumberToCheckOut,
+                    guestNameToCheckOut
                 )
-                if (keycard.isGuestOwner(guestNameToCheckOut.trim())) {
-                    console.log(`Room ${keycard.room.roomNumber} is checkout.`)
-                    keycard.room.checkOut()
-                    keycard.checkOut()
-                } else {
+                if (checkOutRoom.keycard == null) {
+                    console.log(`Room ${checkOutRoom.roomNumber} is checkout.`)
+                } else if(checkOutRoom) {
                     console.log(
-                        `Only ${keycard.guest.name} can checkout with keycard number ${keycardNumberToCheckOut}.`
+                        `Only ${checkOutRoom.keycard.guest.name} can checkout with keycard number ${keycardNumberToCheckOut}.`
                     )
+                }else  if(checkOutRoom === null) {
+                  console.log(`Keycard ${keycardNumberToCheckOut} is not been assign to room.`)
                 }
                 return
-            case 'list_guest\r':
+            case 'list_guest':
                 const allGuest = hotel.listAllGuests()
                 console.log(`${allGuest.join(', ')}`)
                 return
@@ -246,23 +295,15 @@ function main() {
                 return
             case 'list_guest_by_floor':
                 const [floor] = command.params
-                const roomByFloor = hotel.listRoomByFloor(floor)
-                const roomWithGuest = roomByFloor.filter(room => !room.isFree())
+                const roomWithGuest = hotel.listGuestByFloor(floor)
                 console.log(
                     roomWithGuest.map(room => room.guest.name).join(', ')
                 )
                 return
             case 'checkout_guest_by_floor':
                 const [floorToCheckOut] = command.params
-                const roomToCheckOutByFloor =
-                    hotel.listRoomByFloor(floorToCheckOut)
-                const roomToCheckOutWithGuest = roomToCheckOutByFloor.filter(
-                    room => !room.isFree()
-                )
-                roomToCheckOutWithGuest.forEach(room => {
-                    room.keycard.checkOut()
-                    room.checkOut()
-                })
+                const roomToCheckOutWithGuest =
+                    hotel.checkOutByFloor(floorToCheckOut)
                 console.log(
                     `Room ${roomToCheckOutWithGuest
                         .map(room => room.roomNumber)
@@ -275,31 +316,19 @@ function main() {
                     guestNameToBookByFloor,
                     guestAgeToBookByFloor,
                 ] = command.params
-                const roomToBookByFloor = hotel.listRoomByFloor(floorToBook)
-
-                if (
-                    roomToBookByFloor.filter(room => room.isFree()).length ==
-                    roomToBookByFloor.length
-                ) {
-                    const bookedRoom = roomToBookByFloor
-                        .filter(room => room.isFree())
-                        .map(room => {
-                            return hotel.bookRoom(
-                                room.roomNumber,
-                                guestNameToBookByFloor,
-                                guestAgeToBookByFloor
-                            )
-                        })
-                    const keycardBookByFloor = bookedRoom.map(
-                        room => room.keycard
-                    )
+                const bookedRoom = hotel.bookRoomByFloor(
+                    floorToBook,
+                    guestNameToBookByFloor,
+                    guestAgeToBookByFloor
+                )
+                if (bookedRoom != null) {
                     console.log(
                         `Room ${bookedRoom
                             .map(room => room.roomNumber)
                             .join(
                                 ', '
-                            )} are booked with keycard number ${keycardBookByFloor
-                            .map(keycard => keycard.number)
+                            )} are booked with keycard number ${bookedRoom
+                            .map(room => room.keycard.number)
                             .join(', ')}`
                     )
                 } else {
@@ -334,3 +363,4 @@ function getCommandsFromFileName(fileName) {
 }
 
 main()
+
